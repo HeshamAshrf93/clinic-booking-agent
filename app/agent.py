@@ -91,8 +91,9 @@ class BookingAgent:
                     messages.append({"role": "tool", "id": call.id, "name": call.name, "result": output})
             else:
                 log.warning("agent hit max steps for %s", mask_phone(phone))
-        except Exception:  # never leak stack traces to patients
-            log.exception("agent failed for %s", mask_phone(phone))
+        except Exception as exc:  # never leak stack traces to patients
+            log.error("agent failed for %s: %s", mask_phone(phone), exc)
+            log.debug("traceback", exc_info=True)
             reply = ""
 
         if not reply:

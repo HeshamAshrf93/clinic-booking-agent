@@ -54,7 +54,9 @@ model means writing one `complete()` method.
   6 agent steps per turn.
 - **Webhook security:** every request must carry a valid `X-Hub-Signature-256` HMAC; duplicate deliveries are
   ignored by message id.
-- **Fails safe:** if the LLM errors or loops, the patient gets a polite fallback, never a stack trace.
+- **Survives API outages:** busy or rate-limited responses (429/5xx) are retried with backoff, then a fallback
+  model takes over; one conversation turn always stays on one model.
+- **Fails safe:** if the LLM still errors or loops, the patient gets a polite fallback, never a stack trace.
 - **Privacy in logs:** phone numbers are masked and tool arguments (names) are not logged.
 - **Secrets** live in `.env` (git-ignored); the `/chat` test endpoint is off unless `DEMO_MODE=true`.
 
@@ -65,8 +67,9 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-17 tests run offline with a scripted LLM, covering the booking flow end to end, double booking, invented and
-past times, cross-patient cancellation, runaway agent loops, rate limits and forged webhooks.
+22 tests run offline with a scripted LLM, covering the booking flow end to end, double booking, invented and
+past times, cross-patient cancellation, runaway agent loops, rate limits, forged webhooks, and Gemini retries
+and model fallback.
 
 ## Run it
 

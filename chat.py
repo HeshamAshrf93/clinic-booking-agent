@@ -24,7 +24,7 @@ def main() -> None:
     settings = load_settings()
     db = Database(settings.db_path)
     db.init()
-    agent = BookingAgent(settings, db, GeminiLLM(settings.gemini_api_key, settings.gemini_model))
+    agent = BookingAgent(settings, db, GeminiLLM(settings.gemini_api_key, settings.gemini_model, settings.gemini_fallback_models))
 
     print(f"{settings.clinic_name} booking agent. Type 'exit' to quit.\n")
     while True:

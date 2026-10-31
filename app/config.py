@@ -16,6 +16,12 @@ class Settings:
     # LLM
     gemini_api_key: str = field(default_factory=lambda: os.getenv("GEMINI_API_KEY", ""))
     gemini_model: str = field(default_factory=lambda: os.getenv("GEMINI_MODEL", "gemini-3.8-flash"))
+    # Tried in order when the main model is overloaded (HTTP 429/5xx). Comma-separated.
+    gemini_fallback_models: list[str] = field(
+        default_factory=lambda: [
+            m.strip() for m in os.getenv("GEMINI_FALLBACK_MODELS", "gemini-flash-latest").split(",") if m.strip()
+        ]
+    )
 
     # Storage
     db_path: str = field(default_factory=lambda: os.getenv("DB_PATH", "clinic.db"))

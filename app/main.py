@@ -30,7 +30,7 @@ def create_app(settings: Settings | None = None, llm: LLM | None = None, send=se
     settings = settings or load_settings()
     db = Database(settings.db_path)
     db.init()
-    agent = BookingAgent(settings, db, llm or GeminiLLM(settings.gemini_api_key, settings.gemini_model))
+    agent = BookingAgent(settings, db, llm or GeminiLLM(settings.gemini_api_key, settings.gemini_model, settings.gemini_fallback_models))
     # One SQLite connection is shared, so handle one conversation turn at a time.
     # Plenty for a single clinic; move to Postgres + a queue to scale out.
     lock = threading.Lock()
