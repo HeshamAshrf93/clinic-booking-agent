@@ -15,7 +15,7 @@ def _env_bool(name: str, default: bool = False) -> bool:
 class Settings:
     # LLM
     gemini_api_key: str = field(default_factory=lambda: os.getenv("GEMINI_API_KEY", ""))
-    gemini_model: str = field(default_factory=lambda: os.getenv("GEMINI_MODEL", "gemini-2.5-flash"))
+    gemini_model: str = field(default_factory=lambda: os.getenv("GEMINI_MODEL", "gemini-3.8-flash"))
 
     # Storage
     db_path: str = field(default_factory=lambda: os.getenv("DB_PATH", "clinic.db"))
