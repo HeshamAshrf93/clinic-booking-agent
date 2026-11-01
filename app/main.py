@@ -5,6 +5,7 @@ from __future__ import annotations
 import html
 import json
 import logging
+import re
 import threading
 from pathlib import Path
 
@@ -17,10 +18,14 @@ from .agent import BookingAgent
 from .config import Settings, load_settings
 from .db import Database
 from .llm import LLM, build_llm
+from .voice import MAX_AUDIO_BYTES, TranscriptionError, transcribe
 from .whatsapp import mask_phone, parse_text_messages, send_text, valid_signature
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("clinic-agent")
+
+
+PHONE_RE = re.compile(r"\+?\d{6,20}")
 
 
 class ChatIn(BaseModel):
@@ -96,6 +101,24 @@ def create_app(settings: Settings | None = None, llm: LLM | None = None, send=se
         async def chat(body: ChatIn) -> dict:
             reply = await run_in_threadpool(handle_locked, body.phone, body.text)
             return {"reply": reply}
+
+        @app.post("/voice")
+        async def voice(request: Request, phone: str) -> dict:
+            if not PHONE_RE.fullmatch(phone):
+                raise HTTPException(status_code=422, detail="Invalid phone")
+            if int(request.headers.get("content-length") or 0) > MAX_AUDIO_BYTES:
+                raise HTTPException(status_code=413, detail="Recording is too long.")
+            audio = await request.body()
+            try:
+                transcript = await run_in_threadpool(
+                    transcribe, settings, audio, request.headers.get("content-type", "")
+                )
+            except TranscriptionError as exc:
+                raise HTTPException(status_code=400, detail=str(exc))
+            if not transcript:
+                return {"transcript": "", "reply": ""}
+            reply = await run_in_threadpool(handle_locked, phone, transcript)
+            return {"transcript": transcript, "reply": reply}
 
     return app
 # Run with: uvicorn app.main:create_app --factory

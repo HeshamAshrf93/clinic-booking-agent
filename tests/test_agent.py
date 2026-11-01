@@ -1,6 +1,6 @@
 """Agent loop tests with a scripted LLM, so they run offline and deterministically."""
 
-from app.agent import FALLBACK_REPLY, RATE_LIMIT_REPLY, BookingAgent
+from app.agent import FALLBACK_REPLY_EN, RATE_LIMIT_REPLY, BookingAgent
 from app.llm import LLMResult, ScriptedLLM, ToolCall
 
 PHONE = "201000000001"
@@ -65,7 +65,7 @@ def test_tool_errors_go_back_to_the_model(settings, db, now):
 def test_runaway_loop_stops_and_falls_back(settings, db, now):
     looping = [LLMResult(tool_calls=[ToolCall("list_doctors", {})]) for _ in range(20)]
     agent, llm = make_agent(settings, db, now, looping)
-    assert agent.handle(PHONE, "hi") == FALLBACK_REPLY
+    assert agent.handle(PHONE, "hi") == FALLBACK_REPLY_EN
     assert len(llm.seen) == settings.max_agent_steps
 
 
@@ -75,7 +75,7 @@ def test_llm_crash_gives_fallback_not_a_stack_trace(settings, db, now):
             raise RuntimeError("API down")
 
     agent = BookingAgent(settings, db, Broken(), now=now)
-    assert agent.handle(PHONE, "hello") == FALLBACK_REPLY
+    assert agent.handle(PHONE, "hello") == FALLBACK_REPLY_EN
 
 
 def test_rate_limit_per_phone(settings, db, now):
@@ -84,3 +84,27 @@ def test_rate_limit_per_phone(settings, db, now):
         agent.handle(PHONE, "hi")
     assert agent.handle(PHONE, "hi") == RATE_LIMIT_REPLY
     assert agent.handle("201000000009", "hi") == "ok"  # other patients unaffected
+
+
+def test_reply_language_follows_latest_message(settings, db, now):
+    agent, llm = make_agent(settings, db, now, [LLMResult(text="أهلاً بيك"), LLMResult(text="Hello there")])
+    agent.handle(PHONE, "عايز أحجز")
+    agent.handle(PHONE, "Actually, can we talk in English?")
+    assert "Egyptian Arabic only" in llm.systems[0]
+    assert "English only" in llm.systems[1]
+
+
+def test_wrong_language_reply_is_rewritten_once(settings, db, now):
+    agent, llm = make_agent(settings, db, now, [LLMResult(text="Sure, which day?"), LLMResult(text="أكيد، يوم إيه؟")])
+    assert agent.handle(PHONE, "عايز أحجز عند الدكتور") == "أكيد، يوم إيه؟"
+    assert llm.seen[1][-1]["text"].startswith("Rewrite your last reply in Egyptian Arabic")
+
+
+def test_language_detection_handles_mixed_messages():
+    from app.language import detect_language
+
+    assert detect_language("أيوه باسم Alice Samir") == "ar"
+    assert detect_language("عايز appointment بكرة") == "ar"
+    assert detect_language("I want to book with the dentist on Monday") == "en"
+    assert detect_language("5 pm please, my name is Hesham Ashraf") == "en"
+    assert detect_language("12:30") is None

@@ -8,6 +8,7 @@ from typing import Callable
 
 from .config import Settings
 from .db import Database
+from .language import NAMES, detect_language
 from .llm import LLM
 from .tools import TOOL_SPECS, ClinicTools
 from .whatsapp import mask_phone
@@ -18,6 +19,8 @@ FALLBACK_REPLY = (
     "عذراً، حصلت مشكلة عندنا. موظف من العيادة هيرد عليك قريب.\n"
     "Sorry, something went wrong on our side. A staff member will reply soon."
 )
+FALLBACK_REPLY_AR = "عذراً، حصلت مشكلة عندنا. موظف من العيادة هيرد عليك قريب."
+FALLBACK_REPLY_EN = "Sorry, something went wrong on our side. A staff member will reply soon."
 RATE_LIMIT_REPLY = (
     "وصلت للحد الأقصى من الرسايل في الساعة. جرّب تاني بعد شوية أو كلّم العيادة.\n"
     "You've reached the hourly message limit. Please try again later."
@@ -25,14 +28,20 @@ RATE_LIMIT_REPLY = (
 MAX_INPUT_CHARS = 1000
 
 
-def build_system_prompt(settings: Settings, now: datetime) -> str:
+def build_system_prompt(settings: Settings, now: datetime, lang: str | None = None) -> str:
+    language_rule = (
+        f"- The patient's latest message is in {NAMES[lang]}. Write your ENTIRE reply in {NAMES[lang]} only,\n"
+        f"  even if earlier messages used another language. Use the doctor names in that language.\n"
+        if lang
+        else ""
+    )
     return f"""You are the WhatsApp booking assistant of {settings.clinic_name}.
 Current date and time (clinic local time): {now.strftime('%A %Y-%m-%d %H:%M')}.
 
 Your job: help the patient book, view or cancel appointments. Nothing else.
 
 Rules:
-- Reply in the language of the patient's latest message (they may switch). For Arabic, use simple
+{language_rule}- Otherwise reply in the language of the patient's latest message (they may switch). For Arabic, use simple
   Egyptian Arabic.
 - Keep replies short: this is WhatsApp. No markdown tables.
 - Never invent doctors, prices or times. Get them from tools. Always call find_available_slots
@@ -68,7 +77,8 @@ class BookingAgent:
         messages: list[dict] = history + [{"role": "user", "text": text}]
 
         tools = ClinicTools(self.db, phone, self.settings.timezone, now=self._now)
-        system = build_system_prompt(self.settings, tools.now())
+        lang = detect_language(text)
+        system = build_system_prompt(self.settings, tools.now(), lang)
 
         reply = ""
         try:
@@ -92,12 +102,24 @@ class BookingAgent:
                     messages.append({"role": "tool", "id": call.id, "name": call.name, "result": output})
             else:
                 log.warning("agent hit max steps for %s", mask_phone(phone))
+            if reply and lang and detect_language(reply) != lang:
+                reply = self._rewrite_in(lang, system, messages, reply) or reply
         except Exception as exc:  # never leak stack traces to patients
             log.error("agent failed for %s: %s", mask_phone(phone), exc)
             log.debug("traceback", exc_info=True)
             reply = ""
 
         if not reply:
-            reply = FALLBACK_REPLY
+            reply = FALLBACK_REPLY_AR if lang == "ar" else FALLBACK_REPLY_EN if lang == "en" else FALLBACK_REPLY
         self.db.add_message(phone, "assistant", reply)
         return reply
+
+    def _rewrite_in(self, lang: str, system: str, messages: list[dict], reply: str) -> str:
+        """Safety net: one extra call if the model answered in the wrong language."""
+        log.info("reply language mismatch, rewriting in %s", lang)
+        retry = messages + [
+            {"role": "assistant", "text": reply},
+            {"role": "user", "text": f"Rewrite your last reply in {NAMES[lang]} only. Keep the same facts."},
+        ]
+        result = self.llm.complete(system, retry, [])
+        return result.text if result.text and detect_language(result.text) == lang else ""

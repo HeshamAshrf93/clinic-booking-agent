@@ -82,5 +82,5 @@ def test_demo_page_and_chat_when_demo_mode_is_on(settings):
     client = TestClient(app)
     page = client.get("/")
     assert page.status_code == 200 and "textContent" in page.text and "innerHTML" not in page.text.split("<script>")[1]
-    assert client.post("/chat", json={"phone": "201000000001", "text": "hi"}).json() == {"reply": "أهلاً"}
+    assert client.post("/chat", json={"phone": "201000000001", "text": "أهلاً"}).json() == {"reply": "أهلاً"}
     assert client.post("/chat", json={"phone": "not-a-phone", "text": "hi"}).status_code == 422

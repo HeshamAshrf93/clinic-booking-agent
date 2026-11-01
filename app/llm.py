@@ -133,7 +133,9 @@ class GeminiLLM:
                         for t in tools
                     ]
                 )
-            ],
+            ]
+            if tools
+            else None,
             # We run the tools ourselves so every call goes through our validation.
             automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
         )
@@ -230,9 +232,10 @@ class OpenAICompatLLM:
             "model": self._model,
             "temperature": 0.2,
             "messages": self._to_messages(system, messages),
-            "tools": [{"type": "function", "function": t} for t in tools],
-            "tool_choice": "auto",
         }
+        if tools:  # APIs reject an empty tools list
+            payload["tools"] = [{"type": "function", "function": t} for t in tools]
+            payload["tool_choice"] = "auto"
         for attempt in range(self._retries + 1):
             try:
                 data = self._request(payload)
@@ -306,9 +309,11 @@ class ScriptedLLM:
     def __init__(self, script: list[LLMResult]) -> None:
         self.script = list(script)
         self.seen: list[list[dict]] = []
+        self.systems: list[str] = []
 
     def complete(self, system: str, messages: list[dict], tools: list[dict]) -> LLMResult:
         self.seen.append([dict(m) for m in messages])
+        self.systems.append(system)
         if not self.script:
             return LLMResult(text="(no more scripted replies)")
         return self.script.pop(0)

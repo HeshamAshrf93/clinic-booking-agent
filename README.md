@@ -6,6 +6,8 @@ The LLM decides **what** to do; Python code decides **whether it's allowed**.
 > Patient: عايز أحجز عند دكتورة الأسنان يوم الاتنين
 > Agent checks the real schedule → offers free times → confirms the name → books → sends the confirmation.
 
+<p align="center"><img src="docs/demo.png" alt="Browser demo in a phone frame: booking in Arabic and English" width="420"></p>
+
 ## Why this project
 
 Clinics in Egypt take most bookings by phone and WhatsApp, by hand. A plain chatbot can answer questions,
@@ -58,6 +60,11 @@ The LLM layer (`app/llm.py`) is provider-neutral. Gemini is the primary model; a
   Gemini model, then a second provider (Groq). With a backup configured, Gemini gets one 15-second try
   before handing over, so patients wait seconds, not a minute. One conversation turn always stays on one provider, since
   tool-call ids and Gemini thought signatures don't transfer between them.
+- **Language is decided in code:** the reply language follows the patient's latest message (word-based
+  detection that treats Arabic with English names as Arabic). If the model still answers in the wrong
+  language, the agent asks it once to rewrite.
+- **Voice messages:** speech is transcribed with Whisper (Groq, free tier), Arabic or English auto-detected,
+  then handled like any text message.
 - **Fails safe:** if the LLM still errors or loops, the patient gets a polite fallback, never a stack trace.
 - **Privacy in logs:** phone numbers are masked and tool arguments (names) are not logged.
 - **Secrets** live in `.env` (git-ignored); the `/chat` test endpoint is off unless `DEMO_MODE=true`.
@@ -69,9 +76,9 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-29 tests run offline with a scripted LLM, covering the booking flow end to end, double booking, invented and
+41 tests run offline with a scripted LLM, covering the booking flow end to end, double booking, invented and
 past times, cross-patient cancellation, runaway agent loops, rate limits, forged webhooks, Gemini retries,
-provider fallback, and the exact request format each provider expects.
+provider fallback, the exact request format each provider expects, reply language, and voice transcription.
 
 ## Run it
 
@@ -93,7 +100,7 @@ Put a free Gemini key from [Google AI Studio](https://aistudio.google.com/apikey
 python chat.py
 ```
 
-**Or chat in the browser** (WhatsApp-style page; renders Arabic properly, good for demos)
+**Or chat in the browser** (WhatsApp-style page in a phone frame; text or voice; renders Arabic properly)
 
 Set `DEMO_MODE=true` in `.env`, then:
 
@@ -101,7 +108,8 @@ Set `DEMO_MODE=true` in `.env`, then:
 uvicorn app.main:create_app --factory --port 8000
 ```
 
-Open http://localhost:8000. Each browser tab is a new patient.
+Open http://localhost:8000. Each browser tab is a new patient. Tap 🎤 to speak; replies to voice messages
+are read aloud (Microsoft Edge has Egyptian Arabic voices built in).
 
 **3. Connect WhatsApp**
 
@@ -124,6 +132,8 @@ app/
   llm.py        Gemini adapter + scripted fake for tests
   db.py         SQLite schema, seed data, chat history
   whatsapp.py   signature check, payload parsing, sending
+  voice.py      Whisper speech-to-text
+  language.py   reply-language detection
   main.py       FastAPI app (webhook, health, demo page + /chat)
   static/       WhatsApp-style browser demo
 chat.py         terminal chat

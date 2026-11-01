@@ -130,3 +130,26 @@ def test_with_a_backup_gemini_gets_one_quick_try():
     gemini = dict(chain._providers)["gemini"]
     assert gemini._retries == 0 and gemini._models == ["gemini-3.8-flash"]
     assert [name for name, _ in chain._providers] == ["gemini", "backup"]
+
+
+def test_no_tools_means_no_tools_field():
+    seen = {}
+
+    def fake_post(url, payload):
+        seen.update(payload)
+        return {"choices": [{"message": {"content": "hi"}}]}
+
+    OpenAICompatLLM("k", "m", "https://x/v1", post=fake_post).complete("s", [{"role": "user", "text": "x"}], [])
+    assert "tools" not in seen and "tool_choice" not in seen
+
+    llm = GeminiLLM("k", "m", sleep=lambda s: None)
+    configs = []
+
+    def fake_generate(model, contents, config):
+        configs.append(config)
+        c = types.Content(role="model", parts=[types.Part.from_text(text="ok")])
+        return types.GenerateContentResponse(candidates=[types.Candidate(content=c)])
+
+    llm._generate = fake_generate
+    llm.complete("s", [{"role": "user", "text": "x"}], [])
+    assert not configs[0].tools

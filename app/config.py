@@ -31,6 +31,13 @@ class Settings:
     )
     backup_model: str = field(default_factory=lambda: os.getenv("BACKUP_MODEL", "openai/gpt-oss-120b"))
 
+    # Speech-to-text for voice messages (Whisper). Reuses the backup provider's key by default.
+    stt_api_key: str = field(default_factory=lambda: os.getenv("STT_API_KEY") or os.getenv("BACKUP_API_KEY", ""))
+    stt_base_url: str = field(
+        default_factory=lambda: os.getenv("STT_BASE_URL") or os.getenv("BACKUP_BASE_URL", "https://api.groq.com/openai/v1")
+    )
+    stt_model: str = field(default_factory=lambda: os.getenv("STT_MODEL", "whisper-large-v3-turbo"))
+
     # Storage
     db_path: str = field(default_factory=lambda: os.getenv("DB_PATH", "clinic.db"))
 

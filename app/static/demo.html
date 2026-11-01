@@ -6,108 +6,297 @@
 <title>Clinic Booking Agent — demo</title>
 <style>
   :root {
-    --bg: #efeae2; --header: #075e54; --me: #d9fdd3; --bot: #ffffff;
-    --text: #111b21; --muted: #667781; --border: #d1d7db;
+    --chat-bg: #efeae2; --header: #075e54; --accent: #00a884; --me: #d9fdd3; --bot: #ffffff;
+    --text: #111b21; --muted: #667781; --border: #d1d7db; --bezel: #1b1b1d; --rec: #e53935;
+    /* iPhone 13 Pro Max: 428 × 926 points */
+    --w: 428px; --h: 926px;
   }
   * { box-sizing: border-box; }
+  html, body { height: 100%; }
   body {
-    margin: 0; height: 100vh; display: flex; justify-content: center;
-    font-family: "Segoe UI", Tahoma, Arial, sans-serif; background: #d1d7db; color: var(--text);
+    margin: 0; display: grid; place-items: center; overflow: hidden;
+    font-family: -apple-system, "SF Pro Text", "Segoe UI", Tahoma, Arial, sans-serif; color: var(--text);
+    background: radial-gradient(1200px 700px at 30% 20%, #2b3a42 0%, #121a1f 60%, #0b0f12 100%);
   }
-  .phone { width: 100%; max-width: 480px; height: 100vh; display: flex; flex-direction: column; background: var(--bg); }
-  header { background: var(--header); color: #fff; padding: 12px 16px; display: flex; align-items: center; gap: 12px; }
-  .avatar { width: 40px; height: 40px; border-radius: 50%; background: #25d366; display: grid; place-items: center; font-weight: 700; }
-  header h1 { font-size: 16px; margin: 0; }
-  header p { font-size: 12px; margin: 2px 0 0; opacity: .85; }
-  #log { flex: 1; overflow-y: auto; padding: 16px 12px; display: flex; flex-direction: column; gap: 6px; }
+
+  /* ---------- device frame ---------- */
+  .stage { transform-origin: center center; }
+  .device {
+    position: relative; width: calc(var(--w) + 28px); height: calc(var(--h) + 28px);
+    padding: 14px; border-radius: 68px; background: var(--bezel);
+    box-shadow: 0 0 0 2px #3a3a3c, 0 0 0 5px #8e8e93, 0 0 0 7px #2c2c2e, 0 40px 80px rgba(0,0,0,.55);
+  }
+  /* side buttons */
+  .device::before, .device::after {
+    content: ""; position: absolute; width: 5px; background: #8e8e93; border-radius: 2px;
+  }
+  .device::before { left: -9px; top: 190px; height: 64px; box-shadow: 0 84px 0 #8e8e93; }
+  .device::after { right: -9px; top: 250px; height: 100px; }
+  .screen {
+    position: relative; width: var(--w); height: var(--h); border-radius: 54px; overflow: hidden;
+    background: var(--chat-bg); display: flex; flex-direction: column;
+  }
+  .notch {
+    position: absolute; top: 0; left: 50%; transform: translateX(-50%); z-index: 5;
+    width: 162px; height: 32px; background: var(--bezel); border-radius: 0 0 20px 20px;
+  }
+  .notch::after { /* camera */
+    content: ""; position: absolute; right: 30px; top: 10px; width: 11px; height: 11px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #3b4b6b, #0b0d12 70%);
+  }
+  .statusbar {
+    height: 47px; padding: 14px 30px 0 34px; display: flex; justify-content: space-between; align-items: flex-start;
+    background: var(--header); color: #fff; font-weight: 600; font-size: 15px; flex: none;
+  }
+  .status-icons { display: flex; gap: 6px; align-items: center; }
+  .home-indicator {
+    position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+    width: 140px; height: 5px; border-radius: 3px; background: #111; opacity: .85; z-index: 5;
+  }
+
+  /* ---------- chat app ---------- */
+  header.app {
+    background: var(--header); color: #fff; padding: 6px 12px 10px; display: flex; align-items: center; gap: 10px; flex: none;
+  }
+  .back { font-size: 22px; opacity: .9; }
+  .avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--accent); display: grid; place-items: center; font-weight: 700; font-size: 14px; }
+  .title { flex: 1; min-width: 0; }
+  .title h1 { font-size: 16px; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .title p { font-size: 12px; margin: 2px 0 0; opacity: .85; }
+  .icon-btn { background: none; border: 0; color: #fff; font-size: 18px; cursor: pointer; padding: 6px; border-radius: 50%; }
+  .icon-btn[aria-pressed="false"] { opacity: .45; }
+
+  #log { flex: 1; overflow-y: auto; padding: 14px 10px; display: flex; flex-direction: column; gap: 6px; }
+  .note { align-self: center; text-align: center; font-size: 11.5px; color: #54656f; background: #fff3c4; padding: 6px 10px; border-radius: 7px; max-width: 90%; }
   .msg {
-    max-width: 82%; padding: 7px 10px 18px; border-radius: 8px; position: relative;
-    white-space: pre-wrap; line-height: 1.45; font-size: 14.5px; box-shadow: 0 1px .5px rgba(0,0,0,.13);
-    unicode-bidi: plaintext; /* Arabic lines run right-to-left, English left-to-right */
+    max-width: 82%; padding: 6px 9px 18px; border-radius: 8px; position: relative; font-size: 14.5px; line-height: 1.45;
+    white-space: pre-wrap; word-wrap: break-word; box-shadow: 0 1px .5px rgba(11,20,26,.13); unicode-bidi: plaintext;
   }
-  .me { align-self: flex-end; background: var(--me); }
-  .bot { align-self: flex-start; background: var(--bot); }
+  .me { align-self: flex-end; background: var(--me); border-top-right-radius: 2px; }
+  .bot { align-self: flex-start; background: var(--bot); border-top-left-radius: 2px; }
+  .voice-tag { display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
   .time { position: absolute; bottom: 3px; inset-inline-end: 8px; font-size: 11px; color: var(--muted); }
-  .typing { align-self: flex-start; color: var(--muted); font-size: 13px; padding: 4px 8px; }
-  form { display: flex; gap: 8px; padding: 10px; background: #f0f2f5; }
-  input {
-    flex: 1; border: 1px solid var(--border); border-radius: 20px; padding: 10px 14px; font-size: 15px;
-    unicode-bidi: plaintext; outline: none;
+  .typing { align-self: flex-start; color: var(--muted); font-size: 13px; padding: 2px 8px; }
+
+  form { display: flex; gap: 6px; align-items: center; padding: 8px 8px 26px; background: #f0f2f5; flex: none; }
+  #text {
+    flex: 1; min-width: 0; border: 0; border-radius: 22px; padding: 11px 14px; font-size: 15px; outline: none;
+    background: #fff; unicode-bidi: plaintext;
   }
-  button { border: 0; border-radius: 50%; width: 44px; height: 44px; background: var(--header); color: #fff; font-size: 18px; cursor: pointer; }
-  button:disabled { opacity: .5; cursor: default; }
-  .note { text-align: center; font-size: 11.5px; color: var(--muted); background: #fff8c5; margin: 0 auto 6px; padding: 5px 10px; border-radius: 6px; }
+  .round { flex: none; border: 0; border-radius: 50%; width: 44px; height: 44px; background: var(--accent); color: #fff; cursor: pointer; display: grid; place-items: center; }
+  .round:disabled { opacity: .5; cursor: default; }
+  .round svg { width: 22px; height: 22px; fill: currentColor; }
+  .round.recording { background: var(--rec); animation: pulse 1.2s infinite; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(229,57,53,.55); } 100% { box-shadow: 0 0 0 14px rgba(229,57,53,0); } }
+  #rec-time { font-variant-numeric: tabular-nums; color: var(--rec); font-size: 14px; display: none; padding: 0 6px; }
+  .recording-on #rec-time { display: block; }
+  .recording-on #text { display: none; }
+
+  /* Small screens: drop the frame and use the whole screen. */
+  @media (max-width: 500px) {
+    body { place-items: stretch; background: var(--chat-bg); }
+    .stage { transform: none !important; width: 100%; height: 100%; }
+    .device { width: 100%; height: 100%; padding: 0; border-radius: 0; box-shadow: none; }
+    .device::before, .device::after, .notch, .home-indicator, .statusbar { display: none; }
+    .screen { width: 100%; height: 100%; border-radius: 0; }
+    form { padding-bottom: 10px; }
+  }
 </style>
 </head>
 <body>
-<div class="phone">
-  <header>
-    <div class="avatar">NC</div>
-    <div>
-      <h1 id="clinic">Clinic</h1>
-      <p>AI booking assistant · demo</p>
+<div class="stage" id="stage">
+  <div class="device">
+    <div class="screen">
+      <div class="notch"></div>
+      <div class="statusbar">
+        <span id="clock">9:41</span>
+        <span class="status-icons" aria-hidden="true">
+          <svg width="18" height="12" viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1" fill="#fff"/><rect x="5" y="5.5" width="3" height="6.5" rx="1" fill="#fff"/><rect x="10" y="3" width="3" height="9" rx="1" fill="#fff"/><rect x="15" y="0" width="3" height="12" rx="1" fill="#fff"/></svg>
+          <svg width="16" height="12" viewBox="0 0 16 12"><path d="M8 11.5 5.6 9a3.4 3.4 0 0 1 4.8 0z M2.6 6.2l1.4 1.4a5.7 5.7 0 0 1 8 0l1.4-1.4a7.7 7.7 0 0 0-10.8 0z M0 3.4l1.4 1.4a9.9 9.9 0 0 1 13.2 0L16 3.4a11.9 11.9 0 0 0-16 0z" fill="#fff"/></svg>
+          <svg width="27" height="13" viewBox="0 0 27 13"><rect x=".5" y=".5" width="23" height="12" rx="3.5" fill="none" stroke="#fff" opacity=".5"/><rect x="2" y="2" width="18" height="9" rx="2" fill="#fff"/><rect x="24.5" y="4.5" width="2" height="4" rx="1" fill="#fff" opacity=".5"/></svg>
+        </span>
+      </div>
+
+      <header class="app">
+        <span class="back" aria-hidden="true">‹</span>
+        <div class="avatar" id="avatar">NC</div>
+        <div class="title">
+          <h1 id="clinic">Clinic</h1>
+          <p>AI booking assistant · online</p>
+        </div>
+        <button class="icon-btn" id="speak" type="button" aria-pressed="true" title="Read replies aloud">🔊</button>
+      </header>
+
+      <div id="log">
+        <div class="note">Write or tap 🎤 and speak, in Arabic or English.<br>اكتب أو دوس 🎤 واتكلم، عربي أو إنجليزي.</div>
+      </div>
+
+      <form id="form">
+        <span id="rec-time">● 0:00</span>
+        <input id="text" autocomplete="off" placeholder="Message" maxlength="1000" dir="auto">
+        <button class="round" id="action" type="button" aria-label="Record voice message">
+          <svg id="icon-mic" viewBox="0 0 24 24"><path d="M12 15a3.5 3.5 0 0 0 3.5-3.5v-6a3.5 3.5 0 1 0-7 0v6A3.5 3.5 0 0 0 12 15zm6.3-3.5a.9.9 0 1 0-1.8 0 4.5 4.5 0 0 1-9 0 .9.9 0 1 0-1.8 0 6.3 6.3 0 0 0 5.4 6.2V20h-2.4a.9.9 0 0 0 0 1.8h6.6a.9.9 0 0 0 0-1.8h-2.4v-2.3a6.3 6.3 0 0 0 5.4-6.2z"/></svg>
+          <svg id="icon-send" viewBox="0 0 24 24" style="display:none"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z"/></svg>
+          <svg id="icon-stop" viewBox="0 0 24 24" style="display:none"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+        </button>
+      </form>
+      <div class="home-indicator"></div>
     </div>
-  </header>
-  <div id="log">
-    <div class="note">Local demo of the WhatsApp agent. Write in Arabic or English.</div>
   </div>
-  <form id="form">
-    <input id="text" autocomplete="off" placeholder="Type a message… اكتب رسالتك" maxlength="1000" dir="auto">
-    <button id="send" aria-label="Send">➤</button>
-  </form>
 </div>
 <script>
-  const log = document.getElementById("log");
-  const form = document.getElementById("form");
-  const input = document.getElementById("text");
-  const send = document.getElementById("send");
-  document.getElementById("clinic").textContent = document.body.dataset.clinic || "Nile Care Clinic";
+  const $ = (id) => document.getElementById(id);
+  const log = $("log"), form = $("form"), input = $("text"), action = $("action"), speakBtn = $("speak");
+  const clinic = document.body.dataset.clinic || "Nile Care Clinic";
+  $("clinic").textContent = clinic;
+  $("avatar").textContent = clinic.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 
   // Each browser tab is its own patient, so a demo always starts clean.
   const phone = "2010" + Math.floor(1e7 + Math.random() * 9e7);
 
-  function add(text, who) {
+  // ---- fit the phone frame to the window ----
+  function fit() {
+    const s = Math.min(1, (innerHeight - 40) / 954, (innerWidth - 40) / 456);
+    $("stage").style.transform = `scale(${s})`;
+  }
+  addEventListener("resize", fit); fit();
+  const tick = () => ($("clock").textContent = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).replace(/\s?[AP]M$/i, ""));
+  tick(); setInterval(tick, 15000);
+
+  // ---- language + speech output ----
+  const isArabic = (t) => {
+    const words = t.split(/\s+/);
+    const ar = words.filter((w) => /[؀-ۿ]/.test(w)).length;
+    const en = words.filter((w) => /[A-Za-z]/.test(w) && !/[؀-ۿ]/.test(w)).length;
+    return ar > 0 && ar * 2 >= en;
+  };
+  let voices = [];
+  const loadVoices = () => (voices = speechSynthesis.getVoices());
+  if ("speechSynthesis" in window) { loadVoices(); speechSynthesis.onvoiceschanged = loadVoices; }
+  let warnedNoArabic = false;
+
+  function speak(text) {
+    if (!("speechSynthesis" in window) || speakBtn.getAttribute("aria-pressed") !== "true") return;
+    const ar = isArabic(text);
+    const pick = ar
+      ? voices.find((v) => v.lang === "ar-EG") || voices.find((v) => v.lang.startsWith("ar"))
+      : voices.find((v) => v.lang === "en-US" && /natural|online/i.test(v.name)) || voices.find((v) => v.lang.startsWith("en"));
+    if (ar && !pick) {
+      if (!warnedNoArabic) note("No Arabic voice on this browser. Microsoft Edge has Egyptian Arabic voices built in.");
+      warnedNoArabic = true;
+      return;
+    }
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text.replace(/[*_#`]/g, ""));
+    if (pick) { u.voice = pick; u.lang = pick.lang; }
+    speechSynthesis.speak(u);
+  }
+  speakBtn.addEventListener("click", () => {
+    const on = speakBtn.getAttribute("aria-pressed") !== "true";
+    speakBtn.setAttribute("aria-pressed", String(on));
+    speakBtn.textContent = on ? "🔊" : "🔈";
+    if (!on && "speechSynthesis" in window) speechSynthesis.cancel();
+  });
+
+  // ---- chat bubbles ----
+  function note(text) {
     const el = document.createElement("div");
-    el.className = "msg " + who;
-    el.dir = "auto";
-    el.textContent = text; // plain text only: model output is never parsed as HTML
+    el.className = "note"; el.textContent = text;
+    log.appendChild(el); log.scrollTop = log.scrollHeight;
+  }
+  function add(text, who, isVoice) {
+    const el = document.createElement("div");
+    el.className = "msg " + who; el.dir = "auto";
+    if (isVoice) {
+      const tag = document.createElement("span");
+      tag.className = "voice-tag"; tag.textContent = "🎤 Voice message";
+      el.appendChild(tag);
+    }
+    el.appendChild(document.createTextNode(text)); // plain text only: model output is never parsed as HTML
     const t = document.createElement("span");
     t.className = "time";
     t.textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     el.appendChild(t);
-    log.appendChild(el);
-    log.scrollTop = log.scrollHeight;
+    log.appendChild(el); log.scrollTop = log.scrollHeight;
+  }
+  function typing(on) {
+    let el = $("typing");
+    if (on && !el) { el = document.createElement("div"); el.id = "typing"; el.className = "typing"; el.textContent = "typing…"; log.appendChild(el); log.scrollTop = log.scrollHeight; }
+    if (!on && el) el.remove();
+    action.disabled = on;
   }
 
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
+  // ---- the round button: mic when empty, send when there is text, stop while recording ----
+  let recorder = null, chunks = [], recStart = 0, recTimer = null;
+  function setIcon() {
+    const recording = !!recorder;
+    const hasText = input.value.trim().length > 0;
+    $("icon-mic").style.display = !recording && !hasText ? "" : "none";
+    $("icon-send").style.display = !recording && hasText ? "" : "none";
+    $("icon-stop").style.display = recording ? "" : "none";
+    action.classList.toggle("recording", recording);
+    form.classList.toggle("recording-on", recording);
+    action.setAttribute("aria-label", recording ? "Stop and send" : hasText ? "Send" : "Record voice message");
+  }
+  input.addEventListener("input", setIcon);
+
+  async function sendText() {
     const text = input.value.trim();
     if (!text) return;
     add(text, "me");
-    input.value = "";
-    send.disabled = true;
-    const typing = document.createElement("div");
-    typing.className = "typing";
-    typing.textContent = "typing…";
-    log.appendChild(typing);
-    log.scrollTop = log.scrollHeight;
+    input.value = ""; setIcon(); typing(true);
     try {
-      const r = await fetch("/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, text }),
-      });
+      const r = await fetch("/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone, text }) });
       const data = await r.json();
       add(r.ok ? data.reply : "Error " + r.status, "bot");
-    } catch {
-      add("Could not reach the server.", "bot");
-    } finally {
-      typing.remove();
-      send.disabled = false;
-      input.focus();
-    }
+    } catch { add("Could not reach the server.", "bot"); }
+    finally { typing(false); input.focus(); }
+  }
+
+  async function startRecording() {
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) { note("This browser can't record audio. Try Chrome or Edge."); return; }
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch { note("Microphone access was blocked. Allow it from the 🔒 icon in the address bar."); return; }
+    const type = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/mp4"].find((t) => MediaRecorder.isTypeSupported(t)) || "";
+    recorder = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
+    chunks = [];
+    recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+    recorder.onstop = () => { stream.getTracks().forEach((t) => t.stop()); sendVoice(new Blob(chunks, { type: recorder.mimeType })); recorder = null; setIcon(); };
+    recorder.start();
+    recStart = Date.now();
+    $("rec-time").textContent = "● 0:00";
+    recTimer = setInterval(() => {
+      const s = Math.floor((Date.now() - recStart) / 1000);
+      $("rec-time").textContent = `● ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+      if (s >= 60) stopRecording(); // keep voice messages short
+    }, 250);
+    setIcon();
+  }
+  function stopRecording() { clearInterval(recTimer); if (recorder && recorder.state !== "inactive") recorder.stop(); }
+
+  async function sendVoice(blob) {
+    if (blob.size < 2000) { note("That was too short. Hold on a second longer."); return; }
+    typing(true);
+    try {
+      const r = await fetch("/voice?phone=" + encodeURIComponent(phone), { method: "POST", headers: { "Content-Type": blob.type.split(";")[0] }, body: blob });
+      const data = await r.json();
+      if (!r.ok) { note(data.detail || "Voice error " + r.status); return; }
+      if (!data.transcript) { note("Couldn't hear anything. Try again closer to the mic."); return; }
+      add(data.transcript, "me", true);
+      add(data.reply, "bot");
+      speak(data.reply); // voice in, voice out
+    } catch { note("Could not reach the server."); }
+    finally { typing(false); }
+  }
+
+  action.addEventListener("click", () => {
+    if (recorder) stopRecording();
+    else if (input.value.trim()) sendText();
+    else startRecording();
   });
-  input.focus();
+  form.addEventListener("submit", (e) => { e.preventDefault(); sendText(); });
+  setIcon(); input.focus();
 </script>
 </body>
 </html>
