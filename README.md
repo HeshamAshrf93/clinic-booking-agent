@@ -93,6 +93,16 @@ Put a free Gemini key from [Google AI Studio](https://aistudio.google.com/apikey
 python chat.py
 ```
 
+**Or chat in the browser** (WhatsApp-style page; renders Arabic properly, good for demos)
+
+Set `DEMO_MODE=true` in `.env`, then:
+
+```bash
+uvicorn app.main:create_app --factory --port 8000
+```
+
+Open http://localhost:8000. Each browser tab is a new patient.
+
 **3. Connect WhatsApp**
 
 1. Create an app at [Meta for Developers](https://developers.facebook.com/) and add the WhatsApp product.
@@ -114,7 +124,8 @@ app/
   llm.py        Gemini adapter + scripted fake for tests
   db.py         SQLite schema, seed data, chat history
   whatsapp.py   signature check, payload parsing, sending
-  main.py       FastAPI app (webhook, health, demo /chat)
+  main.py       FastAPI app (webhook, health, demo page + /chat)
+  static/       WhatsApp-style browser demo
 chat.py         terminal chat
 tests/          pytest suite
 ```

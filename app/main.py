@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import html
 import json
 import logging
 import threading
+from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 
 from .agent import BookingAgent
@@ -82,6 +84,13 @@ def create_app(settings: Settings | None = None, llm: LLM | None = None, send=se
         return {"ok": True}
 
     if settings.demo_mode:
+        demo_page = (Path(__file__).parent / "static" / "demo.html").read_text(encoding="utf-8")
+        demo_page = demo_page.replace("<body>", f'<body data-clinic="{html.escape(settings.clinic_name)}">', 1)
+
+        @app.get("/", response_class=HTMLResponse)
+        def demo() -> str:
+            # Browser chat that looks like WhatsApp and renders Arabic correctly.
+            return demo_page
 
         @app.post("/chat")
         async def chat(body: ChatIn) -> dict:

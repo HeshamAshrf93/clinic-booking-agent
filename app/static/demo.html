@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clinic Booking Agent — demo</title>
+<style>
+  :root {
+    --bg: #efeae2; --header: #075e54; --me: #d9fdd3; --bot: #ffffff;
+    --text: #111b21; --muted: #667781; --border: #d1d7db;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; height: 100vh; display: flex; justify-content: center;
+    font-family: "Segoe UI", Tahoma, Arial, sans-serif; background: #d1d7db; color: var(--text);
+  }
+  .phone { width: 100%; max-width: 480px; height: 100vh; display: flex; flex-direction: column; background: var(--bg); }
+  header { background: var(--header); color: #fff; padding: 12px 16px; display: flex; align-items: center; gap: 12px; }
+  .avatar { width: 40px; height: 40px; border-radius: 50%; background: #25d366; display: grid; place-items: center; font-weight: 700; }
+  header h1 { font-size: 16px; margin: 0; }
+  header p { font-size: 12px; margin: 2px 0 0; opacity: .85; }
+  #log { flex: 1; overflow-y: auto; padding: 16px 12px; display: flex; flex-direction: column; gap: 6px; }
+  .msg {
+    max-width: 82%; padding: 7px 10px 18px; border-radius: 8px; position: relative;
+    white-space: pre-wrap; line-height: 1.45; font-size: 14.5px; box-shadow: 0 1px .5px rgba(0,0,0,.13);
+    unicode-bidi: plaintext; /* Arabic lines run right-to-left, English left-to-right */
+  }
+  .me { align-self: flex-end; background: var(--me); }
+  .bot { align-self: flex-start; background: var(--bot); }
+  .time { position: absolute; bottom: 3px; inset-inline-end: 8px; font-size: 11px; color: var(--muted); }
+  .typing { align-self: flex-start; color: var(--muted); font-size: 13px; padding: 4px 8px; }
+  form { display: flex; gap: 8px; padding: 10px; background: #f0f2f5; }
+  input {
+    flex: 1; border: 1px solid var(--border); border-radius: 20px; padding: 10px 14px; font-size: 15px;
+    unicode-bidi: plaintext; outline: none;
+  }
+  button { border: 0; border-radius: 50%; width: 44px; height: 44px; background: var(--header); color: #fff; font-size: 18px; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+  .note { text-align: center; font-size: 11.5px; color: var(--muted); background: #fff8c5; margin: 0 auto 6px; padding: 5px 10px; border-radius: 6px; }
+</style>
+</head>
+<body>
+<div class="phone">
+  <header>
+    <div class="avatar">NC</div>
+    <div>
+      <h1 id="clinic">Clinic</h1>
+      <p>AI booking assistant · demo</p>
+    </div>
+  </header>
+  <div id="log">
+    <div class="note">Local demo of the WhatsApp agent. Write in Arabic or English.</div>
+  </div>
+  <form id="form">
+    <input id="text" autocomplete="off" placeholder="Type a message… اكتب رسالتك" maxlength="1000" dir="auto">
+    <button id="send" aria-label="Send">➤</button>
+  </form>
+</div>
+<script>
+  const log = document.getElementById("log");
+  const form = document.getElementById("form");
+  const input = document.getElementById("text");
+  const send = document.getElementById("send");
+  document.getElementById("clinic").textContent = document.body.dataset.clinic || "Nile Care Clinic";
+
+  // Each browser tab is its own patient, so a demo always starts clean.
+  const phone = "2010" + Math.floor(1e7 + Math.random() * 9e7);
+
+  function add(text, who) {
+    const el = document.createElement("div");
+    el.className = "msg " + who;
+    el.dir = "auto";
+    el.textContent = text; // plain text only: model output is never parsed as HTML
+    const t = document.createElement("span");
+    t.className = "time";
+    t.textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    el.appendChild(t);
+    log.appendChild(el);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text) return;
+    add(text, "me");
+    input.value = "";
+    send.disabled = true;
+    const typing = document.createElement("div");
+    typing.className = "typing";
+    typing.textContent = "typing…";
+    log.appendChild(typing);
+    log.scrollTop = log.scrollHeight;
+    try {
+      const r = await fetch("/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, text }),
+      });
+      const data = await r.json();
+      add(r.ok ? data.reply : "Error " + r.status, "bot");
+    } catch {
+      add("Could not reach the server.", "bot");
+    } finally {
+      typing.remove();
+      send.disabled = false;
+      input.focus();
+    }
+  });
+  input.focus();
+</script>
+</body>
+</html>

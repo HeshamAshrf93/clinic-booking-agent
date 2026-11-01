@@ -68,3 +68,19 @@ def test_signed_message_gets_a_reply_once(settings):
 def test_chat_endpoint_is_off_unless_demo_mode(settings):
     client, _ = build(settings)
     assert client.post("/chat", json={"phone": "201000000001", "text": "hi"}).status_code in (404, 405)
+
+
+def test_demo_page_and_chat_when_demo_mode_is_on(settings):
+    from dataclasses import replace
+
+    sent = []
+
+    async def fake_send(_s, phone, text):
+        sent.append(text)
+
+    app = create_app(replace(settings, demo_mode=True), llm=ScriptedLLM([LLMResult(text="أهلاً")]), send=fake_send)
+    client = TestClient(app)
+    page = client.get("/")
+    assert page.status_code == 200 and "textContent" in page.text and "innerHTML" not in page.text.split("<script>")[1]
+    assert client.post("/chat", json={"phone": "201000000001", "text": "hi"}).json() == {"reply": "أهلاً"}
+    assert client.post("/chat", json={"phone": "not-a-phone", "text": "hi"}).status_code == 422
