@@ -55,7 +55,8 @@ The LLM layer (`app/llm.py`) is provider-neutral. Gemini is the primary model; a
 - **Webhook security:** every request must carry a valid `X-Hub-Signature-256` HMAC; duplicate deliveries are
   ignored by message id.
 - **Survives API outages:** busy or rate-limited responses (429/5xx) are retried with backoff, then a fallback
-  Gemini model, then a second provider (Groq). One conversation turn always stays on one provider, since
+  Gemini model, then a second provider (Groq). With a backup configured, Gemini gets one 15-second try
+  before handing over, so patients wait seconds, not a minute. One conversation turn always stays on one provider, since
   tool-call ids and Gemini thought signatures don't transfer between them.
 - **Fails safe:** if the LLM still errors or loops, the patient gets a polite fallback, never a stack trace.
 - **Privacy in logs:** phone numbers are masked and tool arguments (names) are not logged.
@@ -68,7 +69,7 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-28 tests run offline with a scripted LLM, covering the booking flow end to end, double booking, invented and
+29 tests run offline with a scripted LLM, covering the booking flow end to end, double booking, invented and
 past times, cross-patient cancellation, runaway agent loops, rate limits, forged webhooks, Gemini retries,
 provider fallback, and the exact request format each provider expects.
 

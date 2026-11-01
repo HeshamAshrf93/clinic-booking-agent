@@ -47,6 +47,7 @@ class GeminiLLM:
         fallback_models: list[str] | None = None,
         retries: int = 2,
         sleep: Callable[[float], None] = time.sleep,
+        timeout_s: int = 30,
     ) -> None:
         if not api_key:
             raise RuntimeError("GEMINI_API_KEY is not set. Copy .env.example to .env and add your key.")
@@ -55,7 +56,7 @@ class GeminiLLM:
         from google.genai import types
 
         # Fail fast instead of hanging when the API is slow; the chain then tries the backup.
-        self._client = genai.Client(api_key=api_key, http_options=types.HttpOptions(timeout=30_000))
+        self._client = genai.Client(api_key=api_key, http_options=types.HttpOptions(timeout=timeout_s * 1000))
         self._models = [model] + [m for m in (fallback_models or []) if m and m != model]
         self._retries = retries
         self._sleep = sleep
@@ -214,9 +215,12 @@ class OpenAICompatLLM:
             return self._post(self._url, payload)
         import httpx
 
-        resp = httpx.post(
-            self._url, json=payload, headers={"Authorization": f"Bearer {self._key}"}, timeout=30
-        )
+        try:
+            resp = httpx.post(
+                self._url, json=payload, headers={"Authorization": f"Bearer {self._key}"}, timeout=30
+            )
+        except httpx.TimeoutException as exc:
+            raise ProviderError(504, "timeout") from exc
         if resp.status_code >= 400:
             raise ProviderError(resp.status_code, resp.text[:200])
         return resp.json()
@@ -282,17 +286,13 @@ def build_llm(settings) -> LLM:
     providers: list[tuple[str, LLM]] = []
     has_backup = bool(settings.backup_api_key)
     if settings.gemini_api_key:
-        providers.append(
-            (
-                "gemini",
-                GeminiLLM(
-                    settings.gemini_api_key,
-                    settings.gemini_model,
-                    settings.gemini_fallback_models,
-                    retries=1 if has_backup else 2,  # don't keep the patient waiting if a backup exists
-                ),
-            )
-        )
+        if has_backup:
+            # A backup exists: give Gemini one quick try, then hand over, so the patient
+            # waits seconds, not a minute of retries.
+            gemini = GeminiLLM(settings.gemini_api_key, settings.gemini_model, [], retries=0, timeout_s=15)
+        else:
+            gemini = GeminiLLM(settings.gemini_api_key, settings.gemini_model, settings.gemini_fallback_models)
+        providers.append(("gemini", gemini))
     if has_backup:
         providers.append(
             ("backup", OpenAICompatLLM(settings.backup_api_key, settings.backup_model, settings.backup_base_url))

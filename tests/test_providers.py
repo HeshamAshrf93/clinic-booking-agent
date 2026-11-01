@@ -120,3 +120,13 @@ def test_chain_tries_gemini_again_on_the_next_turn():
 def test_chain_needs_at_least_one_provider():
     with pytest.raises(RuntimeError):
         ChainLLM([])
+
+
+def test_with_a_backup_gemini_gets_one_quick_try():
+    from app.config import Settings
+    from app.llm import build_llm
+
+    chain = build_llm(Settings(gemini_api_key="g", backup_api_key="b"))
+    gemini = dict(chain._providers)["gemini"]
+    assert gemini._retries == 0 and gemini._models == ["gemini-3.8-flash"]
+    assert [name for name, _ in chain._providers] == ["gemini", "backup"]
