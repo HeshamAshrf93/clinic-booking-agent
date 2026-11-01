@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from .agent import BookingAgent
 from .config import Settings, load_settings
 from .db import Database
-from .llm import LLM, GeminiLLM
+from .llm import LLM, build_llm
 from .whatsapp import mask_phone, parse_text_messages, send_text, valid_signature
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -30,7 +30,7 @@ def create_app(settings: Settings | None = None, llm: LLM | None = None, send=se
     settings = settings or load_settings()
     db = Database(settings.db_path)
     db.init()
-    agent = BookingAgent(settings, db, llm or GeminiLLM(settings.gemini_api_key, settings.gemini_model, settings.gemini_fallback_models))
+    agent = BookingAgent(settings, db, llm or build_llm(settings))
     # One SQLite connection is shared, so handle one conversation turn at a time.
     # Plenty for a single clinic; move to Postgres + a queue to scale out.
     lock = threading.Lock()

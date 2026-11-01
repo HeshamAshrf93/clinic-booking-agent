@@ -19,7 +19,7 @@ flowchart LR
     P[Patient on WhatsApp] -->|message| M[Meta Cloud API]
     M -->|signed webhook| W[FastAPI /webhook]
     W -->|verify HMAC, dedupe| A[Agent loop]
-    A <-->|function calling| L[Gemini LLM]
+    A <-->|function calling| L[Gemini → Groq backup]
     A -->|tool call| T[Clinic tools]
     T -->|validated reads/writes| D[(SQLite)]
     A -->|reply| S[send_text] --> M --> P
@@ -39,8 +39,8 @@ run them and feed the results back → repeat until it answers in text (max 6 st
 | `cancel_appointment` | Cancels one of the patient's own bookings |
 | `request_human` | Hands off medical questions, complaints and emergencies to staff |
 
-The LLM layer (`app/llm.py`) is provider-neutral: Gemini is the default (free tier), and swapping in another
-model means writing one `complete()` method.
+The LLM layer (`app/llm.py`) is provider-neutral. Gemini is the primary model; any OpenAI-compatible API
+(Groq by default, or OpenAI / OpenRouter) is the automatic backup. Both have free tiers.
 
 ## Guardrails (enforced in code, not in the prompt)
 
@@ -55,7 +55,8 @@ model means writing one `complete()` method.
 - **Webhook security:** every request must carry a valid `X-Hub-Signature-256` HMAC; duplicate deliveries are
   ignored by message id.
 - **Survives API outages:** busy or rate-limited responses (429/5xx) are retried with backoff, then a fallback
-  model takes over; one conversation turn always stays on one model.
+  Gemini model, then a second provider (Groq). One conversation turn always stays on one provider, since
+  tool-call ids and Gemini thought signatures don't transfer between them.
 - **Fails safe:** if the LLM still errors or loops, the patient gets a polite fallback, never a stack trace.
 - **Privacy in logs:** phone numbers are masked and tool arguments (names) are not logged.
 - **Secrets** live in `.env` (git-ignored); the `/chat` test endpoint is off unless `DEMO_MODE=true`.
@@ -67,9 +68,9 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-22 tests run offline with a scripted LLM, covering the booking flow end to end, double booking, invented and
-past times, cross-patient cancellation, runaway agent loops, rate limits, forged webhooks, and Gemini retries
-and model fallback.
+28 tests run offline with a scripted LLM, covering the booking flow end to end, double booking, invented and
+past times, cross-patient cancellation, runaway agent loops, rate limits, forged webhooks, Gemini retries,
+provider fallback, and the exact request format each provider expects.
 
 ## Run it
 
@@ -82,7 +83,8 @@ pip install -r requirements.txt
 copy .env.example .env          # macOS/Linux: cp .env.example .env
 ```
 
-Put a free Gemini key from [Google AI Studio](https://aistudio.google.com/apikey) in `GEMINI_API_KEY`.
+Put a free Gemini key from [Google AI Studio](https://aistudio.google.com/apikey) in `GEMINI_API_KEY`, and
+(recommended) a free Groq key from [console.groq.com/keys](https://console.groq.com/keys) in `BACKUP_API_KEY`.
 
 **2. Chat in the terminal** (no WhatsApp needed)
 

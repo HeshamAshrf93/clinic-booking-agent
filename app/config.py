@@ -23,6 +23,14 @@ class Settings:
         ]
     )
 
+    # Backup provider: any OpenAI-compatible API. Defaults to Groq (free tier).
+    # Used when every Gemini model is busy or down. Leave the key empty to disable.
+    backup_api_key: str = field(default_factory=lambda: os.getenv("BACKUP_API_KEY", ""))
+    backup_base_url: str = field(
+        default_factory=lambda: os.getenv("BACKUP_BASE_URL", "https://api.groq.com/openai/v1")
+    )
+    backup_model: str = field(default_factory=lambda: os.getenv("BACKUP_MODEL", "llama-3.3-70b-versatile"))
+
     # Storage
     db_path: str = field(default_factory=lambda: os.getenv("DB_PATH", "clinic.db"))
 
