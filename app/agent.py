@@ -82,7 +82,7 @@ class BookingAgent:
         if self.db.user_messages_last_hour(phone) >= self.settings.max_messages_per_hour:
             return RATE_LIMIT_REPLY
 
-        history = self.db.recent_messages(phone)
+        history = self.db.recent_messages(phone, limit=8)
         self.db.add_message(phone, "user", text)
         messages: list[dict] = history + [{"role": "user", "text": text}]
 

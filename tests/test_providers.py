@@ -65,7 +65,7 @@ def test_openai_compatible_request_and_tool_call_parsing():
     assert seen["url"] == "https://api.groq.com/openai/v1/chat/completions"
     msgs = seen["payload"]["messages"]
     assert [m["role"] for m in msgs] == ["system", "user", "assistant", "tool", "tool"]
-    assert msgs[2]["tool_calls"][1]["function"]["arguments"] == json.dumps({"doctor_id": 1, "date": "2026-11-02"})
+    assert json.loads(msgs[2]["tool_calls"][1]["function"]["arguments"]) == {"doctor_id": 1, "date": "2026-11-02"}
     assert msgs[3]["tool_call_id"] == "a"
     assert seen["payload"]["tools"][0]["function"]["name"] == "list_doctors"
     assert result.tool_calls[0].name == "find_available_slots"
@@ -153,3 +153,41 @@ def test_no_tools_means_no_tools_field():
     llm._generate = fake_generate
     llm.complete("s", [{"role": "user", "text": "x"}], [])
     assert not configs[0].tools
+
+
+def test_provider_order_is_configurable():
+    from app.config import Settings
+    from app.llm import build_llm
+
+    chain = build_llm(Settings(gemini_api_key="g", backup_api_key="b", provider_order=["backup", "gemini"]))
+    assert [name for name, _ in chain._providers] == ["backup", "gemini"]
+    only_gemini = build_llm(Settings(gemini_api_key="g", backup_api_key="", provider_order=["backup", "gemini"]))
+    assert [name for name, _ in only_gemini._providers] == ["gemini"]
+
+
+def test_gemini_thinking_level_is_sent():
+    llm = GeminiLLM("k", "m", sleep=lambda s: None, thinking="low")
+    configs = []
+
+    def fake_generate(model, contents, config):
+        configs.append(config)
+        c = types.Content(role="model", parts=[types.Part.from_text(text="ok")])
+        return types.GenerateContentResponse(candidates=[types.Candidate(content=c)])
+
+    llm._generate = fake_generate
+    llm.complete("s", [{"role": "user", "text": "x"}], [])
+    assert configs[0].thinking_config.thinking_level == types.ThinkingLevel.LOW
+
+
+def test_rate_limit_waits_for_the_time_groq_asks_for():
+    waits, calls = [], []
+
+    def post(url, payload):
+        calls.append(1)
+        if len(calls) == 1:
+            raise ProviderError(429, '{"error":{"message":"Rate limit reached ... Please try again in 3.2s."}}')
+        return {"choices": [{"message": {"content": "ok"}}]}
+
+    llm = OpenAICompatLLM("k", "m", "https://x/v1", sleep=waits.append, post=post)
+    assert llm.complete("s", [{"role": "user", "text": "x"}], []).text == "ok"
+    assert waits == [3.7]

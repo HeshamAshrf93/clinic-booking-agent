@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Protocol
@@ -48,6 +49,7 @@ class GeminiLLM:
         retries: int = 2,
         sleep: Callable[[float], None] = time.sleep,
         timeout_s: int = 30,
+        thinking: str = "",
     ) -> None:
         if not api_key:
             raise RuntimeError("GEMINI_API_KEY is not set. Copy .env.example to .env and add your key.")
@@ -59,6 +61,7 @@ class GeminiLLM:
         self._client = genai.Client(api_key=api_key, http_options=types.HttpOptions(timeout=timeout_s * 1000))
         self._models = [model] + [m for m in (fallback_models or []) if m and m != model]
         self._retries = retries
+        self._thinking = thinking
         self._sleep = sleep
         self._turn_model: str | None = None
 
@@ -138,6 +141,7 @@ class GeminiLLM:
             else None,
             # We run the tools ourselves so every call goes through our validation.
             automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+            thinking_config=types.ThinkingConfig(thinking_level=self._thinking.upper()) if self._thinking else None,
         )
         new_turn = bool(messages) and messages[-1]["role"] == "user"
         response = self._call_with_resilience(contents, config, new_turn)
@@ -166,13 +170,14 @@ class OpenAICompatLLM:
     """
 
     RETRYABLE = {429, 500, 502, 503, 504}
+    MAX_WAIT_S = 12  # longest pause before giving up on a rate limit
 
     def __init__(
         self,
         api_key: str,
         model: str,
         base_url: str,
-        retries: int = 1,
+        retries: int = 2,
         sleep: Callable[[float], None] = time.sleep,
         post: Callable[..., Any] | None = None,
     ) -> None:
@@ -197,7 +202,7 @@ class OpenAICompatLLM:
                         {
                             "id": tc.get("id") or f"call_{i}",
                             "type": "function",
-                            "function": {"name": tc["name"], "arguments": json.dumps(tc["args"], ensure_ascii=False)},
+                            "function": {"name": tc["name"], "arguments": json.dumps(tc["args"], ensure_ascii=False, separators=(",", ":"))},
                         }
                         for i, tc in enumerate(m["tool_calls"])
                     ]
@@ -207,7 +212,7 @@ class OpenAICompatLLM:
                     {
                         "role": "tool",
                         "tool_call_id": m.get("id") or "call_0",
-                        "content": json.dumps(m["result"], ensure_ascii=False),
+                        "content": json.dumps(m["result"], ensure_ascii=False, separators=(",", ":")),
                     }
                 )
         return out
@@ -224,7 +229,7 @@ class OpenAICompatLLM:
         except httpx.TimeoutException as exc:
             raise ProviderError(504, "timeout") from exc
         if resp.status_code >= 400:
-            raise ProviderError(resp.status_code, resp.text[:200])
+            raise ProviderError(resp.status_code, resp.text[:400])
         return resp.json()
 
     def complete(self, system: str, messages: list[dict], tools: list[dict]) -> LLMResult:
@@ -243,7 +248,10 @@ class OpenAICompatLLM:
             except ProviderError as exc:
                 if exc.code not in self.RETRYABLE or attempt == self._retries:
                     raise
-                self._sleep(2**attempt)
+                # Rate limits (429) say how long to wait, e.g. "Please try again in 2.4s".
+                hint = re.search(r"try again in ([\d.]+)s", str(exc))
+                wait = float(hint.group(1)) + 0.5 if hint else 2**attempt
+                self._sleep(min(wait, self.MAX_WAIT_S))
 
         msg = data["choices"][0]["message"]
         calls = []
@@ -286,21 +294,28 @@ class ChainLLM:
 
 def build_llm(settings) -> LLM:
     """Gemini first, the OpenAI-compatible backup (Groq by default) second."""
-    providers: list[tuple[str, LLM]] = []
+    available: dict[str, LLM] = {}
     has_backup = bool(settings.backup_api_key)
     if settings.gemini_api_key:
         if has_backup:
             # A backup exists: give Gemini one quick try, then hand over, so the patient
             # waits seconds, not a minute of retries.
-            gemini = GeminiLLM(settings.gemini_api_key, settings.gemini_model, [], retries=0, timeout_s=15)
+            gemini = GeminiLLM(
+                settings.gemini_api_key, settings.gemini_model, [], retries=0, timeout_s=15,
+                thinking=settings.gemini_thinking,
+            )
         else:
-            gemini = GeminiLLM(settings.gemini_api_key, settings.gemini_model, settings.gemini_fallback_models)
-        providers.append(("gemini", gemini))
+            gemini = GeminiLLM(
+                settings.gemini_api_key, settings.gemini_model, settings.gemini_fallback_models,
+                thinking=settings.gemini_thinking,
+            )
+        available["gemini"] = gemini
     if has_backup:
-        providers.append(
-            ("backup", OpenAICompatLLM(settings.backup_api_key, settings.backup_model, settings.backup_base_url))
-        )
-    return ChainLLM(providers)
+        available["backup"] = OpenAICompatLLM(settings.backup_api_key, settings.backup_model, settings.backup_base_url)
+
+    order = [name for name in settings.provider_order if name in available]
+    order += [name for name in available if name not in order]  # anything configured but unlisted goes last
+    return ChainLLM([(name, available[name]) for name in order])
 
 
 class ScriptedLLM:

@@ -31,6 +31,15 @@ class Settings:
     )
     backup_model: str = field(default_factory=lambda: os.getenv("BACKUP_MODEL", "openai/gpt-oss-120b"))
 
+    # Which provider answers first: "gemini,backup" (default) or "backup,gemini" to put Groq first.
+    provider_order: list[str] = field(
+        default_factory=lambda: [
+            p.strip().lower() for p in os.getenv("PROVIDER_ORDER", "gemini,backup").split(",") if p.strip()
+        ]
+    )
+    # Gemini "thinking" effort: minimal / low / medium / high. Lower is faster. Empty = model default.
+    gemini_thinking: str = field(default_factory=lambda: os.getenv("GEMINI_THINKING", "low").strip().lower())
+
     # Speech-to-text for voice messages (Whisper). Reuses the backup provider's key by default.
     stt_api_key: str = field(default_factory=lambda: os.getenv("STT_API_KEY") or os.getenv("BACKUP_API_KEY", ""))
     stt_base_url: str = field(
