@@ -82,3 +82,14 @@ def test_unknown_tool_and_bad_args_fail_safely(db, now):
     assert not t.call("drop_database", {})["ok"]
     assert not t.call("book_appointment", {"doctor_id": 1})["ok"]
     assert not t.call("cancel_appointment", {"appointment_id": "abc"})["ok"]
+
+
+def test_find_next_available_skips_days_off_in_one_call(db, now):
+    t = tools_for(db, ALICE, now)  # now = Sunday 1 Nov 09:00; dentist works Sat, Mon, Wed
+    result = t.find_next_available(1)
+    assert result["ok"]
+    assert [d["date"] for d in result["next_days"]] == ["2026-11-02", "2026-11-04", "2026-11-07"]
+    assert result["next_days"][0]["slots"][0]["start_at"] == MONDAY_4PM
+    # A slot it returns can be booked as is
+    assert t.book_appointment(1, result["next_days"][0]["slots"][0]["start_at"], "Alice Samir")["ok"]
+    assert t.call("find_next_available", {"doctor_id": 1, "from_date": "nope"})["ok"] is False

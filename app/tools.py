@@ -42,6 +42,21 @@ TOOL_SPECS: list[dict[str, Any]] = [
         },
     },
     {
+        "name": "find_next_available",
+        "description": (
+            "Find the next days a doctor has free times, searching up to 14 days ahead in one call. "
+            "Use this when the patient asks for the earliest time, any day, or a day the doctor doesn't work."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "doctor_id": {"type": "integer", "description": "Doctor id from list_doctors."},
+                "from_date": {"type": "string", "description": "Start searching from this date, YYYY-MM-DD. Defaults to today."},
+            },
+            "required": ["doctor_id"],
+        },
+    },
+    {
         "name": "book_appointment",
         "description": (
             "Book a slot returned by find_available_slots, for the patient you are chatting with. "
@@ -53,7 +68,7 @@ TOOL_SPECS: list[dict[str, Any]] = [
                 "doctor_id": {"type": "integer"},
                 "start_at": {
                     "type": "string",
-                    "description": "Exact start_at value of the chosen slot from find_available_slots.",
+                    "description": "Exact start_at value of the chosen slot from find_available_slots or find_next_available.",
                 },
                 "patient_name": {"type": "string", "description": "Patient's full name."},
             },
@@ -118,6 +133,7 @@ class ClinicTools:
         handlers = {
             "list_doctors": self.list_doctors,
             "find_available_slots": self.find_available_slots,
+            "find_next_available": self.find_next_available,
             "book_appointment": self.book_appointment,
             "list_my_appointments": self.list_my_appointments,
             "cancel_appointment": self.cancel_appointment,
@@ -210,6 +226,30 @@ class ClinicTools:
             "slots": [{"start_at": s.isoformat(), "time": s.strftime("%H:%M")} for s in free[:MAX_SLOTS_RETURNED]],
             "more_available": len(free) > MAX_SLOTS_RETURNED,
         }
+
+    def find_next_available(self, doctor_id: Any, from_date: str | None = None, days: int = 14) -> dict[str, Any]:
+        doctor = self._doctor(doctor_id)
+        if doctor is None:
+            return _err("No doctor with that id. Call list_doctors first.")
+        today = self.now().date()
+        start = today
+        if from_date:
+            try:
+                start = max(today, datetime.strptime(str(from_date), "%Y-%m-%d").date())
+            except ValueError:
+                return _err("from_date must be YYYY-MM-DD.")
+        found = []
+        for offset in range(min(int(days), MAX_DAYS_AHEAD)):
+            day = start + timedelta(days=offset)
+            if day > today + timedelta(days=MAX_DAYS_AHEAD):
+                break
+            result = self.find_available_slots(doctor["id"], day.isoformat())
+            if result.get("ok") and result["slots"]:
+                found.append({"date": day.isoformat(), "day": WEEKDAYS[day.weekday()], "slots": result["slots"][:4]})
+            if len(found) == 3:
+                break
+        return {"ok": True, "doctor_id": doctor["id"], "next_days": found,
+                "note": "" if found else "No free times in the next two weeks."}
 
     def book_appointment(self, doctor_id: Any, start_at: str, patient_name: str) -> dict[str, Any]:
         doctor = self._doctor(doctor_id)

@@ -36,6 +36,7 @@ run them and feed the results back → repeat until it answers in text (max 6 st
 |---|---|
 | `list_doctors` | Doctors, specialty, fee, working days |
 | `find_available_slots` | Free times for a doctor on a date, from the real weekly schedule |
+| `find_next_available` | The next days a doctor has free times (up to 14 days, one call) |
 | `book_appointment` | Books a slot for the patient in this chat |
 | `list_my_appointments` | The patient's upcoming bookings |
 | `cancel_appointment` | Cancels one of the patient's own bookings |
@@ -76,7 +77,7 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-43 tests run offline with a scripted LLM, covering the booking flow end to end, double booking, invented and
+44 tests run offline with a scripted LLM, covering the booking flow end to end, double booking, invented and
 past times, cross-patient cancellation, runaway agent loops, rate limits, forged webhooks, Gemini retries,
 provider fallback, the exact request format each provider expects, reply language, and voice transcription.
 
