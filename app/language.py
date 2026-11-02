@@ -22,3 +22,22 @@ def detect_language(text: str) -> str | None:
     if arabic == 0 and latin == 0:
         return None
     return "ar" if arabic and arabic * 2 >= latin else "en"
+
+
+SHORT_MESSAGE_WORDS = 4
+
+
+def reply_language(latest: str, earlier_user_messages: list[str]) -> str | None:
+    """Language to reply in.
+
+    Normally the latest message decides. Short messages (a name, "ok", a time) don't carry a
+    reliable signal, so they keep the conversation's language: "Hesham Ashraf" in the middle of
+    an Arabic chat is still an Arabic chat.
+    """
+    lang = detect_language(latest)
+    if len((latest or "").split()) > SHORT_MESSAGE_WORDS:
+        return lang
+    for earlier in reversed(earlier_user_messages):
+        if len(earlier.split()) > SHORT_MESSAGE_WORDS and (prev := detect_language(earlier)):
+            return prev
+    return lang

@@ -76,7 +76,7 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-41 tests run offline with a scripted LLM, covering the booking flow end to end, double booking, invented and
+43 tests run offline with a scripted LLM, covering the booking flow end to end, double booking, invented and
 past times, cross-patient cancellation, runaway agent loops, rate limits, forged webhooks, Gemini retries,
 provider fallback, the exact request format each provider expects, reply language, and voice transcription.
 

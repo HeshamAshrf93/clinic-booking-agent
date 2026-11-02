@@ -8,7 +8,7 @@ from typing import Callable
 
 from .config import Settings
 from .db import Database
-from .language import NAMES, detect_language
+from .language import NAMES, detect_language, reply_language
 from .llm import LLM
 from .tools import TOOL_SPECS, ClinicTools
 from .whatsapp import mask_phone
@@ -59,6 +59,9 @@ Rules:
 - Medical questions, emergencies, complaints, payments or anything unclear: call request_human.
   For emergencies also tell them to call 123 (Egypt ambulance) right away.
 - If a tool returns ok=false, explain simply and offer the next step.
+- If the patient only says thanks, ok or goodbye, reply briefly and do not call tools.
+- A time missing from find_available_slots may be the patient's own booking: check
+  list_my_appointments before telling them it is unavailable.
 """
 
 
@@ -82,7 +85,7 @@ class BookingAgent:
         messages: list[dict] = history + [{"role": "user", "text": text}]
 
         tools = ClinicTools(self.db, phone, self.settings.timezone, now=self._now)
-        lang = detect_language(text)
+        lang = reply_language(text, [m["text"] for m in history if m["role"] == "user"])
         system = build_system_prompt(self.settings, tools.now(), lang)
 
         reply = ""

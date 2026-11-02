@@ -108,3 +108,20 @@ def test_language_detection_handles_mixed_messages():
     assert detect_language("I want to book with the dentist on Monday") == "en"
     assert detect_language("5 pm please, my name is Hesham Ashraf") == "en"
     assert detect_language("12:30") is None
+
+
+def test_short_messages_keep_the_conversation_language(settings, db, now):
+    agent, llm = make_agent(settings, db, now, [LLMResult(text="تمام، اسمك إيه؟"), LLMResult(text="تمام يا هشام، اتحجزلك.")])
+    agent.handle(PHONE, "عايز أحجز عند دكتور العلاج الطبيعي يوم الحد")
+    agent.handle(PHONE, "Hesham Ashraf Abdo")  # a name in Latin letters mid-Arabic chat
+    assert "Egyptian Arabic only" in llm.systems[1]
+    assert len(llm.seen) == 2  # no rewrite triggered
+
+
+def test_reply_language_rules():
+    from app.language import reply_language
+
+    assert reply_language("Hesham Ashraf", ["عايز أحجز عند دكتورة الأسنان يوم الاتنين"]) == "ar"
+    assert reply_language("ok", ["I want to book with the dentist on Monday"]) == "en"
+    assert reply_language("Can we continue in English please?", ["عايز أحجز عند دكتورة الأسنان"]) == "en"
+    assert reply_language("Hesham Ashraf", []) == "en"
