@@ -175,20 +175,51 @@
   if ("speechSynthesis" in window) { loadVoices(); speechSynthesis.onvoiceschanged = loadVoices; }
   let warnedNoArabic = false;
 
+  // Best voice first: natural Egyptian voices (Edge: Shakir / Salma), then other natural Arabic,
+  // then anything Arabic. Old desktop voices like "Hoda" sound robotic and read Modern Standard Arabic.
+  function score(v, ar) {
+    const name = v.name.toLowerCase();
+    const natural = /natural|online|neural/.test(name);
+    if (ar) {
+      if (!v.lang.toLowerCase().startsWith("ar")) return -1;
+      return (v.lang === "ar-EG" ? 4 : 0) + (natural ? 8 : 0) + (/shakir|salma/.test(name) ? 2 : 0) - (/hoda|naayf/.test(name) ? 3 : 0);
+    }
+    if (!v.lang.toLowerCase().startsWith("en")) return -1;
+    return (v.lang === "en-US" ? 2 : 0) + (natural ? 8 : 0);
+  }
+  function bestVoice(ar) {
+    return voices.map((v) => [score(v, ar), v]).filter(([s]) => s >= 0).sort((a, b) => b[0] - a[0])[0]?.[1];
+  }
+  // Read naturally: drop symbols, brackets and list dashes that a voice would read out loud.
+  function forSpeech(text) {
+    return text
+      .replace(/[*_#`]/g, "")
+      .replace(/(^|\s)د\.\s*/g, "$1دكتور ")
+      .replace(/[()\[\]{}"“”«»]/g, " ")
+      .replace(/^\s*[-•]\s*/gm, "")
+      .replace(/\s*[–—-]\s*/g, "، ")
+      .replace(/\n+/g, "، ")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+  }
+  let announcedVoice = "";
   function speak(text) {
     if (!("speechSynthesis" in window) || speakBtn.getAttribute("aria-pressed") !== "true") return;
     const ar = isArabic(text);
-    const pick = ar
-      ? voices.find((v) => v.lang === "ar-EG") || voices.find((v) => v.lang.startsWith("ar"))
-      : voices.find((v) => v.lang === "en-US" && /natural|online/i.test(v.name)) || voices.find((v) => v.lang.startsWith("en"));
+    const pick = bestVoice(ar);
     if (ar && !pick) {
       if (!warnedNoArabic) note("No Arabic voice on this browser. Microsoft Edge has Egyptian Arabic voices built in.");
       warnedNoArabic = true;
       return;
     }
+    if (ar && pick && announcedVoice !== pick.name) {
+      announcedVoice = pick.name;
+      if (!/natural|online|neural/i.test(pick.name)) note("Using " + pick.name + ". For a natural Egyptian voice use Microsoft Edge.");
+    }
     speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text.replace(/[*_#`]/g, ""));
+    const u = new SpeechSynthesisUtterance(forSpeech(text));
     if (pick) { u.voice = pick; u.lang = pick.lang; }
+    u.rate = ar ? 0.95 : 1;
     speechSynthesis.speak(u);
   }
   speakBtn.addEventListener("click", () => {
