@@ -148,5 +148,9 @@ tests/          pytest suite
 - Reminder messages 24 hours before each appointment (WhatsApp template messages).
 - Staff dashboard for handoffs; Postgres + a job queue for multi-clinic use.
 
+## License
+
+MIT, see [LICENSE](LICENSE).
+
 ---
 Built by [Hesham Ashraf](https://www.linkedin.com/in/hesham-ashrf) · AI Engineer (AI agents & automation)
