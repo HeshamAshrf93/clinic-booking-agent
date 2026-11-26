@@ -81,9 +81,36 @@ pytest
 past times, cross-patient cancellation, runaway agent loops, rate limits, forged webhooks, Gemini retries,
 provider fallback, the exact request format each provider expects, reply language, and voice transcription.
 
+## Requirements
+
+- Python 3.10+ (tested on 3.13)
+- Packages in `requirements.txt`: FastAPI, Uvicorn, httpx, google-genai, python-dotenv, tzdata
+- A free Gemini API key; a free Groq key is recommended as backup and for voice messages
+- For WhatsApp: a Meta for Developers app with the WhatsApp product, and ngrok (or any HTTPS tunnel) for local testing
+
+## Environment variables
+
+Copy `.env.example` to `.env`; it is loaded automatically and git-ignored. Never commit real keys.
+
+| Variable | Required | Default | What it does |
+|---|---|---|---|
+| `GEMINI_API_KEY` | yes | empty | Primary LLM |
+| `GEMINI_MODEL` / `GEMINI_FALLBACK_MODELS` | no | see `.env.example` | Main Gemini model and models to try when it's busy |
+| `GEMINI_THINKING` | no | `low` | Gemini thinking effort (lower = faster replies) |
+| `BACKUP_API_KEY` | recommended | empty | Backup OpenAI-compatible provider (Groq by default); also used for voice |
+| `BACKUP_BASE_URL` / `BACKUP_MODEL` | no | Groq + `openai/gpt-oss-120b` | Which backup provider and model |
+| `PROVIDER_ORDER` | no | `gemini,backup` | Which provider answers first |
+| `STT_MODEL` | no | `whisper-large-v3-turbo` | Speech-to-text model for voice messages |
+| `CLINIC_NAME` / `CLINIC_TZ` / `DB_PATH` | no | `Nile Care Clinic` / `Africa/Cairo` / `clinic.db` | Clinic settings |
+| `WA_ACCESS_TOKEN`, `WA_PHONE_NUMBER_ID`, `WA_APP_SECRET` | for WhatsApp | empty | From Meta > your app > WhatsApp > API Setup |
+| `WA_VERIFY_TOKEN` | for WhatsApp | placeholder | Any long random string, also entered in the Meta webhook settings |
+| `GRAPH_API_VERSION` | no | `v21.0` | Meta Graph API version |
+| `MAX_AGENT_STEPS` / `MAX_MESSAGES_PER_HOUR` | no | `6` / `30` | Abuse limits |
+| `DEMO_MODE` | no | `false` | Enables the browser demo and `POST /chat`. Keep `false` in production |
+
 ## Run it
 
-**1. Install** (Python 3.10+)
+**1. Install**
 
 ```bash
 python -m venv .venv
